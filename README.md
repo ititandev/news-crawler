@@ -3,7 +3,6 @@
 This project contains the code for scraping vnexpress.net, tuoitre.vn and lists out the top 10 articles from last week, ranked by the total number of likes in “Ý kiến" section of the article
 
 # Usage
-
 - Make sure python3 is installed
 - Download the source code into `/opt/news-crawler`
 - Install necessary packages
@@ -17,7 +16,8 @@ python app.py
 
 - Install cronjob with `crontab -e`
 ```
-*/30 * * * * bash /opt/news-crawler/crontab.sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+*/30 * * * * /opt/news-crawler/crontab.sh
 ```
 - Optional: Run crawler manually with the following commands:
 ```bash
