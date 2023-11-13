@@ -8,7 +8,6 @@ app = Flask(__name__)
 
 
 def load_data(file):
-    result = []
     try:
         with open("%s.json" % file, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -22,9 +21,12 @@ def load_data(file):
 
 
 def is_crawl_running(spider):
-    for process in psutil.process_iter(['pid', 'name', 'cmdline']):
-        if 'scrapy crawl %s' % spider in process.info['cmdline']:
-            return True
+    try:
+        for process in psutil.process_iter(['pid', 'name', 'cmdline']):
+            if 'crawl %s' % spider in ' '.join(process.cmdline()):
+                return True
+    except:
+        pass
     return False
 
 
@@ -33,18 +35,27 @@ def index():
     vnexpress = load_data("vnexpress-top10")
     tuoitre = load_data("tuoitre-top10")
 
-    return render_template('index.html', vnexpress=vnexpress, tuoitre=tuoitre)
+    return render_template('index.html',
+                           vnexpress=vnexpress,
+                           tuoitre=tuoitre,
+                           vnexpress_running=is_crawl_running("vnexpress"),
+                           tuoitre_running=is_crawl_running("tuoitre")
+                           )
 
 
 @app.route('/run_vnexpress')
 def run_vnexpress():
-    subprocess.Popen(['scrapy', 'crawl', 'vnexpress'])
+    if not is_crawl_running("vnexpress"):
+        subprocess.Popen(['timeout', '15m', 'scrapy', 'crawl', 'vnexpress', '-L', 'ERROR'])
     return redirect(url_for('index'))
+
 
 @app.route('/run_tuoitre')
 def run_tuoitre():
-    subprocess.Popen(['scrapy', 'crawl', 'tuoitre'])
+    if not is_crawl_running("tuoitre"):
+        subprocess.Popen(['timeout', '15m', 'scrapy', 'crawl', 'tuoitre', '-L', 'ERROR'])
     return redirect(url_for('index'))
+
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=80, debug=True)
