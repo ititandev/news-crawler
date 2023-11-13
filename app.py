@@ -6,7 +6,7 @@ from flask import Flask, render_template, request, redirect, url_for
 
 app = Flask(__name__)
 
-@staticmethod
+
 def load_data(file):
     result = []
     try:
@@ -20,12 +20,13 @@ def load_data(file):
         except:
             return []
 
-@staticmethod
+
 def is_crawl_running(spider):
     for process in psutil.process_iter(['pid', 'name', 'cmdline']):
         if 'scrapy crawl %s' % spider in process.info['cmdline']:
             return True
     return False
+
 
 @app.route('/')
 def index():
@@ -47,4 +48,4 @@ def run_tuoitre():
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    app.run(port=8000, debug=True)
+    app.run(host="0.0.0.0", port=80, debug=True)
