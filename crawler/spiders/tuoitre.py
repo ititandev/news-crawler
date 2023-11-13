@@ -1,3 +1,6 @@
+import os
+import shutil
+
 import requests
 import scrapy
 import re
@@ -39,6 +42,8 @@ class TuoitreSpider(scrapy.Spider):
             "https://tuoitre.vn/timeline/12/trang-1.htm",  # Suc khoe
         ]
         self.article_list = []
+        if os.path.exists('%s-top10.json' % self.name):
+            shutil.move('%s-top10.json' % self.name, '%s-top10.bak.json' % self.name)
 
     def parse(self, response):
         page_url = response._url
@@ -50,11 +55,17 @@ class TuoitreSpider(scrapy.Spider):
             if articles[-1]["publish_time"] >= self.cut_off_timestamp:
                 yield scrapy.Request(url=self.generate_next_page_url(page_url), callback=self.parse)
         for article in articles:
-            yield article
             self.article_list.append(article)
 
     def close(self, reason):
-        print(heapq.nlargest(10, self.article_list, key=lambda x: x['like']))
+        top10 = heapq.nlargest(10, self.article_list, key=lambda x: x['like'])
+        stats = self.crawler.stats.get_stats()
+        with open('%s-top10.json' % self.name, 'w', encoding='utf-8') as f:
+            json.dump({"finish_reason": stats["finish_reason"],
+                       "finish_time": str(stats["finish_time"]),
+                       "elapsed_time_seconds": stats["elapsed_time_seconds"],
+                       "data": top10
+                       }, f, ensure_ascii=False, indent=4)
 
     def extract_articles(self, article_selector, page_url):
         article_list = []
