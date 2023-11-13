@@ -20,11 +20,6 @@ class TuoitreSpider(scrapy.Spider):
 
     def __init__(self, *args, **kwargs):
         super(TuoitreSpider, self).__init__(*args, **kwargs)
-        self.top10 = []
-        self.comment_limit = 50
-        self.cut_off_timestamp = int((datetime.now() - timedelta(days=7)).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ).timestamp())
         self.start_urls = [
             "https://tuoitre.vn/timeline/3/trang-1.htm",        # Thoi su
             "https://tuoitre.vn/timeline/2/trang-1.htm",        # The gioi
@@ -41,22 +36,26 @@ class TuoitreSpider(scrapy.Spider):
             "https://tuoitre.vn/timeline/204/trang-1.htm",      # Nha dat
             "https://tuoitre.vn/timeline/12/trang-1.htm",       # Suc khoe
         ]
+        self.cut_off_timestamp = int((datetime.now() - timedelta(days=7)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).timestamp())
+        self.comment_limit = 50
         self.article_list = []
         self.article_set = set()
+
         if os.path.exists('%s-top10.json' % self.name):
             shutil.move('%s-top10.json' % self.name, '%s-top10.bak.json' % self.name)
-        if os.path.exists('data/tuoitre.json'):
-            os.remove('data/tuoitre.json')
+        if os.path.exists('data/%s.json' % self.name):
+            os.remove('data/%s.json' % self.name)
 
     def parse(self, response):
         page_url = response._url
         article_selector = response.xpath('//a[@class="box-category-link-title"]')
-
         articles = self.extract_articles(article_selector, page_url)
 
-        if len(articles) > 0:
-            if articles[-1]["publish_time"] >= self.cut_off_timestamp:
-                yield scrapy.Request(url=self.generate_next_page_url(page_url), callback=self.parse)
+        if len(articles) > 0 and articles[-1]["publish_time"] >= self.cut_off_timestamp:
+            yield scrapy.Request(url=self.generate_next_page_url(page_url), callback=self.parse)
+
         for article in articles:
             if article["data-id"] not in self.article_set:
                 self.article_set.add(article["data-id"])
@@ -125,6 +124,7 @@ class TuoitreSpider(scrapy.Spider):
             if len(comments) > 0:
                 num_like += sum(comment.get("likes") for comment in comments)
                 if comments[-1].get("likes") > 0:
+                    # If the last comment has like > 0, recursively call the function with an increased index
                     num_like += self.get_comment_like(article_id, index + 1)
             return num_like
         except:

@@ -46,15 +46,18 @@ class VnexpressSpider(scrapy.Spider):
 
         if os.path.exists('%s-top10.json' % self.name):
             shutil.move('%s-top10.json' % self.name, '%s-top10.bak.json' % self.name)
-        if os.path.exists('data/vnexpress.json'):
-            os.remove('data/vnexpress.json')
+        if os.path.exists('data/%s.json' % self.name):
+            os.remove('data/%s.json' % self.name)
 
 
     def parse(self, response):
         page_url = response._url
-
         article_id_list = [self.get_article_id(a.xpath('div/a/@href').get()) for a in response.xpath('//article')]
         article_list = self.get_article_details(article_id_list)
+
+        if len(article_list) > 0 and article_list[-1].get("publish_time") > self.cut_off_timestamp:
+            yield scrapy.Request(url=self.generate_next_page_url(page_url), callback=self.parse)
+
         for article in article_list:
             if article.get("publish_time") > self.cut_off_timestamp:
                 article["page_url"] = page_url
@@ -62,8 +65,6 @@ class VnexpressSpider(scrapy.Spider):
                 self.article_list.append(article)
                 yield article
 
-        if len(article_list) > 0 and article_list[-1].get("publish_time") > self.cut_off_timestamp:
-            yield scrapy.Request(url=self.generate_next_page_url(page_url), callback=self.parse)
 
     def close(self, reason):
         top10 = heapq.nlargest(10, self.article_list, key=lambda x: x['like'])
@@ -75,8 +76,7 @@ class VnexpressSpider(scrapy.Spider):
                        "data": top10
                        }, f, ensure_ascii=False, indent=4)
 
-    @staticmethod
-    def get_article_id(url):
+    def get_article_id(self, url):
         try:
             match = re.search(r'-(\d+).html', url)
             return int(match.group(1)) if match else 0
