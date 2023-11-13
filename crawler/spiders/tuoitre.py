@@ -3,6 +3,7 @@ import scrapy
 import re
 from datetime import datetime, timedelta
 import json
+import heapq
 
 
 class TuoitreSpider(scrapy.Spider):
@@ -14,44 +15,63 @@ class TuoitreSpider(scrapy.Spider):
         'FEED_EXPORT_INDENT': 4,
     }
 
-    category_list = [
-        "https://tuoitre.vn/timeline/3/trang-1.htm",  # Thoi su
-        "https://tuoitre.vn/timeline/2/trang-1.htm",  # The gioi
-        "https://tuoitre.vn/timeline/6/trang-1.htm",  # Phap luat
-    ]
-
-    COMMENT_LIMIT_PER_QUERY = 200
-    cut_off_timestamp = int((datetime.now() - timedelta(days=7)).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    ).timestamp())
-
-    def start_requests(self):
-        for url in self.category_list:
-            yield scrapy.Request(url, self.parse)
+    def __init__(self, *args, **kwargs):
+        super(TuoitreSpider, self).__init__(*args, **kwargs)
+        self.top10 = []
+        self.comment_limit = 50
+        self.cut_off_timestamp = int((datetime.now() - timedelta(days=7)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).timestamp())
+        self.start_urls = [
+            "https://tuoitre.vn/timeline/3/trang-1.htm",  # Thoi su
+            "https://tuoitre.vn/timeline/2/trang-1.htm",  # The gioi
+            "https://tuoitre.vn/timeline/6/trang-1.htm",  # Phap luat
+            "https://tuoitre.vn/timeline/11/trang-1.htm",  # Kinh doanh
+            "https://tuoitre.vn/timeline/200029/trang-1.htm",  # Cong nghe
+            "https://tuoitre.vn/timeline/659/trang-1.htm",  # Xe
+            "https://tuoitre.vn/timeline/100/trang-1.htm",  # Du lich
+            "https://tuoitre.vn/timeline/7/trang-1.htm",  # Nhip song tre
+            "https://tuoitre.vn/timeline/200017/trang-1.htm",  # Van hoa
+            "https://tuoitre.vn/timeline/10/trang-1.htm",  # Giai tri
+            "https://tuoitre.vn/timeline/1209/trang-1.htm",  # The thao
+            "https://tuoitre.vn/timeline/13/trang-1.htm",  # Giao duc
+            "https://tuoitre.vn/timeline/204/trang-1.htm",  # Nha dat
+            "https://tuoitre.vn/timeline/12/trang-1.htm",  # Suc khoe
+        ]
+        self.article_list = []
 
     def parse(self, response):
         page_url = response._url
-        article_list = response.xpath('//a[@class="box-category-link-title"]')
+        article_selector = response.xpath('//a[@class="box-category-link-title"]')
 
-        for i, a in enumerate(article_list):
-            article = self.extract_article_data(a, page_url)
+        articles = self.extract_articles(article_selector, page_url)
 
-            if self.get_publish_time(article) >= self.cut_off_timestamp:
-                if i == len(article_list) - 1:
-                    yield scrapy.Request(url=self.generate_next_page_url(page_url), callback=self.parse)
-                yield article
+        if len(articles) > 0:
+            if articles[-1]["publish_time"] >= self.cut_off_timestamp:
+                yield scrapy.Request(url=self.generate_next_page_url(page_url), callback=self.parse)
+        for article in articles:
+            yield article
+            self.article_list.append(article)
 
-    def extract_article_data(self, article_selector, page_url):
-        article = {'page_url': page_url}
-        attributes = ["data-type", "href", "title", "data-linktype", "data-id"]
+    def close(self, reason):
+        print(heapq.nlargest(10, self.article_list, key=lambda x: x['like']))
 
-        for attr in attributes:
-            article[attr] = article_selector.xpath(f'@{attr}').get()
+    def extract_articles(self, article_selector, page_url):
+        article_list = []
+        for selector in article_selector:
+            article = {'page_url': page_url}
+            attributes = ["data-type", "href", "title", "data-linktype", "data-id"]
+            for attr in attributes:
+                article[attr] = selector.xpath(f'@{attr}').get()
 
-        return article
+            article["publish_time"] = int(datetime.strptime(article["data-id"][:8], "%Y%m%d").timestamp())
+            if article["publish_time"] >= self.cut_off_timestamp > 0:
+                like = self.get_comment_like(article["data-id"])
+                if like > 0:
+                    article["like"] = like
+                    article_list.append(article)
 
-    def get_publish_time(self, article):
-        return int(datetime.strptime(article["data-id"][:8], "%Y%m%d").timestamp())
+        return article_list
 
     def generate_next_page_url(self, current_url):
         match = re.search(r'(.*?/trang-)(\d+)\.htm', current_url)
@@ -73,16 +93,22 @@ class TuoitreSpider(scrapy.Spider):
 
         return [i.get("object_id") for i in response.json().get("Data")]
 
-
-    def get_comment_like(article_id, index=1):
-        url = "https://id.tuoitre.vn/api/getlist-comment.api"
-
-        response = requests.get("https://id.tuoitre.vn/api/getlist-comment.api", params={
+    def get_comment_like(self, article_id, index=1):
+        num_like = 0
+        resp = requests.get("https://id.tuoitre.vn/api/getlist-comment.api", params={
             "sort": 2,
             "objType": 1,
             "objId": article_id,
-            "pagesize": 100,
-            "pagesize": index
+            "pagesize": self.comment_limit,
+            "pageindex": index
         })
-
-        return sum(comment.get("likes") for comment in json.loads(response.json()['Data']))
+        resp.raise_for_status()
+        try:
+            comments = json.loads(resp.json()["Data"])
+            if len(comments) > 0:
+                num_like += sum(comment.get("likes") for comment in comments)
+                if comments[-1].get("likes") > 0:
+                    num_like += self.get_comment_like(article_id, index + 1)
+            return num_like
+        except:
+            return num_like
