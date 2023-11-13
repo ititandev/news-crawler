@@ -46,14 +46,14 @@ def index():
 @app.route('/run_vnexpress')
 def run_vnexpress():
     if not is_crawl_running("vnexpress"):
-        subprocess.Popen(['timeout', '15m', 'scrapy', 'crawl', 'vnexpress', '-L', 'ERROR'])
+        subprocess.Popen(['timeout', '20m', 'scrapy', 'crawl', 'vnexpress', '-L', 'ERROR'])
     return redirect(url_for('index'))
 
 
 @app.route('/run_tuoitre')
 def run_tuoitre():
     if not is_crawl_running("tuoitre"):
-        subprocess.Popen(['timeout', '15m', 'scrapy', 'crawl', 'tuoitre', '-L', 'ERROR'])
+        subprocess.Popen(['timeout', '20m', 'scrapy', 'crawl', 'tuoitre', '-L', 'ERROR'])
     return redirect(url_for('index'))
 
 
