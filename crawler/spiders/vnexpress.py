@@ -38,13 +38,16 @@ class VnexpressSpider(scrapy.Spider):
             "https://vnexpress.net/oto-xe-may",
             "https://vnexpress.net/the-gioi",
         ]
-        self.cut_off_timestamp = int((datetime.now() - timedelta(days=7)).timestamp())
+        self.cut_off_timestamp = int((datetime.now() - timedelta(days=7)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).timestamp())
         self.comment_limit = 200
         self.article_list = []
 
         if os.path.exists('%s-top10.json' % self.name):
             shutil.move('%s-top10.json' % self.name, '%s-top10.bak.json' % self.name)
-
+        if os.path.exists('data/vnexpress.json'):
+            os.remove('data/vnexpress.json')
 
 
     def parse(self, response):
@@ -57,6 +60,7 @@ class VnexpressSpider(scrapy.Spider):
                 article["page_url"] = page_url
                 article["like"] = self.get_comment_like(article)
                 self.article_list.append(article)
+                yield article
 
         if len(article_list) > 0 and article_list[-1].get("publish_time") > self.cut_off_timestamp:
             yield scrapy.Request(url=self.generate_next_page_url(page_url), callback=self.parse)
