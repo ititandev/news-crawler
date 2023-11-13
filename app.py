@@ -23,7 +23,7 @@ def load_data(file):
 def is_crawl_running(spider):
     try:
         for process in psutil.process_iter(['pid', 'name', 'cmdline']):
-            if 'crawl %s' % spider in ' '.join(process.cmdline()):
+            if '%s' % spider in ' '.join(process.cmdline()):
                 return True
     except:
         pass
