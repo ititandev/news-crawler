@@ -5,6 +5,7 @@ import requests
 import scrapy
 import re
 from datetime import datetime, timedelta
+import heapq
 
 class VnexpressSpider(scrapy.Spider):
     name = 'vnexpress'
@@ -33,8 +34,29 @@ class VnexpressSpider(scrapy.Spider):
             "https://vnexpress.net/oto-xe-may",
             "https://vnexpress.net/the-gioi",
         ]
-        self.cut_off_timestamp = kwargs["cut_off_timestamp"] or int((datetime.now() - timedelta(days=7)).timestamp())
+        self.cut_off_timestamp = int((datetime.now() - timedelta(days=7)).timestamp())
         self.comment_limit = 200
+        self.article_list = []
+
+
+
+    def parse(self, response):
+        page_url = response._url
+
+        article_id_list = [self.get_article_id(a.xpath('div/a/@href').get()) for a in response.xpath('//article')]
+        article_list = self.get_article_details(article_id_list)
+        for article in article_list:
+            if article.get("publish_time") > self.cut_off_timestamp:
+                article["page_url"] = page_url
+                article["like"] = self.get_comment_like(article)
+                yield article
+                self.article_list.append(article)
+
+        if len(article_list) > 0 and article_list[-1].get("publish_time") > self.cut_off_timestamp:
+            yield scrapy.Request(url=self.generate_next_page_url(page_url), callback=self.parse)
+
+    def close(self, reason):
+        print(heapq.nlargest(10, self.article_list, key=lambda x: x['like']))
 
     @staticmethod
     def get_article_id(url):
@@ -62,7 +84,7 @@ class VnexpressSpider(scrapy.Spider):
             next_page_url = f"{current_url.rstrip('/')}-p2"
         return next_page_url
 
-    def get_comment_userlike(self, article, offset=0):
+    def get_comment_like(self, article, offset=0):
         num_like = 0
         resp = requests.get("https://usi-saas.vnexpress.net/index/get",
                             params={
@@ -85,20 +107,7 @@ class VnexpressSpider(scrapy.Spider):
             last_comment = data["data"]["items"][-1]
             if last_comment["userlike"] > 0:
                 # If the last comment has userlike > 0, recursively call the function with an increased offset
-                num_like += self.get_comment_userlike(article, offset + self.comment_limit)
+                num_like += self.get_comment_like(article, offset + self.comment_limit)
 
         return num_like
 
-    def parse(self, response):
-        page_url = response._url
-
-        article_id_list = [self.get_article_id(a.xpath('div/a/@href').get()) for a in response.xpath('//article')]
-        article_list = self.get_article_details(article_id_list)
-        for article in article_list:
-            if article.get("publish_time") > self.cut_off_timestamp:
-                article["page_url"] = page_url
-                article["userlike"] = self.get_comment_userlike(article)
-                yield article
-
-        if len(article_list) > 0 and article_list[-1].get("publish_time") > self.cut_off_timestamp:
-            yield scrapy.Request(url=self.generate_next_page_url(page_url), callback=self.parse)
