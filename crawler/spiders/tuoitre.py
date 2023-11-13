@@ -51,15 +51,18 @@ class TuoitreSpider(scrapy.Spider):
     def parse(self, response):
         page_url = response._url
         article_selector = response.xpath('//a[@class="box-category-link-title"]')
-        articles = self.extract_articles(article_selector, page_url)
+        articles = self.extract_articles(article_selector)
 
         if len(articles) > 0 and articles[-1]["publish_time"] >= self.cut_off_timestamp:
             yield scrapy.Request(url=self.generate_next_page_url(page_url), callback=self.parse)
 
         for article in articles:
-            if article["data-id"] not in self.article_set:
+            if article["data-id"] not in self.article_set and article["publish_time"] >= self.cut_off_timestamp:
                 self.article_set.add(article["data-id"])
-                self.article_list.append(article)
+                article["page_url"] = page_url
+                article["like"] = self.get_comment_like(article["data-id"])
+                if article["like"] > 0:
+                    self.article_list.append(article)
                 yield article
 
     def close(self, reason):
@@ -72,21 +75,15 @@ class TuoitreSpider(scrapy.Spider):
                        "data": top10
                        }, f, ensure_ascii=False, indent=4)
 
-    def extract_articles(self, article_selector, page_url):
+    def extract_articles(self, article_selector):
         article_list = []
         for selector in article_selector:
-            article = {'page_url': page_url}
+            article = dict()
             attributes = ["data-type", "href", "title", "data-linktype", "data-id"]
             for attr in attributes:
                 article[attr] = selector.xpath(f'@{attr}').get()
-
             article["publish_time"] = int(datetime.strptime(article["data-id"][:8], "%Y%m%d").timestamp())
-            if article["publish_time"] >= self.cut_off_timestamp > 0:
-                like = self.get_comment_like(article["data-id"])
-                if like > 0:
-                    article["like"] = like
-                    article_list.append(article)
-
+            article_list.append(article)
         return article_list
 
     def generate_next_page_url(self, current_url):

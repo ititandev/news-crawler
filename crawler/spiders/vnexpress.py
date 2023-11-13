@@ -53,16 +53,17 @@ class VnexpressSpider(scrapy.Spider):
     def parse(self, response):
         page_url = response._url
         article_id_list = [self.get_article_id(a.xpath('div/a/@href').get()) for a in response.xpath('//article')]
-        article_list = self.get_article_details(article_id_list)
+        articles = self.get_article_details(article_id_list)
 
-        if len(article_list) > 0 and article_list[-1].get("publish_time") > self.cut_off_timestamp:
+        if len(articles) > 0 and articles[-1].get("publish_time") > self.cut_off_timestamp:
             yield scrapy.Request(url=self.generate_next_page_url(page_url), callback=self.parse)
 
-        for article in article_list:
+        for article in articles:
             if article.get("publish_time") > self.cut_off_timestamp:
                 article["page_url"] = page_url
                 article["like"] = self.get_comment_like(article)
-                self.article_list.append(article)
+                if article["like"] > 0:
+                    self.article_list.append(article)
                 yield article
 
 
