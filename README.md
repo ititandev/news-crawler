@@ -1,69 +1,67 @@
-# web_scraping
+# News-crawler
 
-This project contains the code for scraping vnexpress.net, the most popular Vietnamese website.
+This project contains the code for scraping vnexpress.net, tuoitre.vn and lists out the top 10 articles from last week, ranked by the total number of likes in “Ý kiến" section of the article
 
-## Usage
+# Usage
 
-After installing `scrapy` (see the Dependencies section), simply run:
-
+- Make sure python3 is installed
+- Download the source code into `/opt/news-crawler`
+- Install necessary packages
 ```
-scrapy crawl vnexpress -o data/path-to-output.json 
+pip install -r requirements.txt
 ```
-to crawl the web pages.
-
-The extracted data will be stored in the specified file path in a json format.
-
-## Extracted Data
-
-You can see the data scraped in `data/vnexpress.json`. This is the result of running with the default setting and the categories specified in `crawler/vnexpress.py`.
-
-For each article, four fields were extracted:
-
-- `category`: the url which contains the category of the article, e.g. "https://vnexpress.net/y-kien/doi-song-p10". You should ignore the page number (`p10`) because as explaind below, the URL is not permanent and its content will change as vnexpress add more articles.
-- `url`: the url to the full article, you can visit this url to read or crawl the full content
-- `title`: the title of the article.
-- `text`: a short exceprt of the article.
-
-Note that some of the fields may be empty.
-
-An example:
-
-    "category": "https://vnexpress.net/y-kien/doi-song",
-    "url": null,
-    "title": null,
-    "text": "Đã có nhà để ở và cho thuê, một mảnh đất, ôtô riêng, cùng hai tỷ tiết kiệm, tôi vẫn phân vân từ bỏ công việc áp lực hiện tại."
-
-This can be read as a pandas DataFrame using:
-
-```python
-import pandas as pd
-df = pd.read_json('data/vnexpress.json')
-# if you want to keep articles with non-empty texts only
-df = df[~df['text'].isna()]
+- Run the web server with the following command
+```bash
+python app.py
 ```
 
-### Statistics
+- Install cronjob with `crontab -e`
+```
+*/30 * * * * bash /opt/news-crawler/crontab.sh
+```
+- Optional: Run crawler manually with the following commands:
+```bash
+scrapy crawl vnexpress
+scrapy crawl tuoitre
+```
+# How it works?
 
-- 17 categories
-- 18,452 articles
-- 611,733 tokens (single words)
+## About scrapy
+`Scrapy` is a fast high-level web crawling and web scraping framework, used to crawl websites and extract structured data from their pages. It can be used for a wide range of purposes, from data mining to monitoring and automated testing.
 
-## Customizations
+Built-in middleware and pipelines and asynchronous processing make `scrapy` is appropriate for this kind of task.
 
-Vnexpress organizes its contents into categories. Each category may have thousands of articles, organised into numbered pages. For example, for one of the travel categories, the first page is "https://vnexpress.net/du-lich/diem-den". Subsequent pages can be formed by adding a suffix of 'p' with the page number, such as "https://vnexpress.net/du-lich/diem-den-p100". Since the articles within a page are generated dynamically, you will likely get a different result when crawling the same page url (after certain period of time depending on the frequency of the update, which seems daily at least).
+## VNExpress Crawler
+The crawler starts with predefined category links and extracts article_id from `<article>` tag.
 
-### Categories
+After that, the following API is used to get more details about that article, such as `title`, `original_cate`, `site_id`, `article_type` and `publish_time`:
+```
+https://gw.vnexpress.net/ar/get_basic?data_select=title,lead,share_url,article_type,original_cate,site_id,publish_time&article_id=<comma-separated-list>
+```
 
-The categories can be customized by editting the `crawler/vnexpress.py` file. The categories that are currently there are for my personal purposes, you can replace with your own categories by visiting vnexpress.net.
+It also continues with the next page if publish_time of the last article is still in a 7-day time window.
 
-### Pages to crawl for each category
+Then another API is used to get the comment list and count number of likes across pages
+```
+https://usi-saas.vnexpress.net/index/get?offset=0&limit=200&sort=like&objecttype=<article_type>&siteid=<site_id>&categoryid=<original_cate>&tab_active=most_like&objectid=<article_id>
+```
 
-You can choose how many pages to crawl for each category by changing the `pages` parameter in the `get_urls()` method in the same file. The default is `30` pages. Each page contains 30 articles.
+Finally, `heapq.nlargest` is used to get top 10 of articles by number of likes by using a heap structure and export it to `vnexpress-top10.json`
+## Tuoitre Crawler
+The crawler starts with predefined category links and extracts article_id from `<a class="box-category-link-title">` tag. First 8 characters of the article_id is also considered as `publish_time` and compared with a 7-day time window to decide whether the next page is necessary to crawl
 
-## Dependencies
+Then an API is used to get the comment list and count nubmer of likes across pages
+```
+https://id.tuoitre.vn/api/getlist-comment.api?pageindex=1&pagesize=50&objId=<article_id>&objType=1&sort=2
+```
 
-`scrapy` is the only dependency in this project. [The official documentation page](https://scrapy.org/) recommends installing the package using `conda` or `miniconda`.
+Finally, `heapq.nlargest` is used to get top 10 of articles by number of likes by using a heap structure and export it to `tuoitre-top10.json`
+## Webserver
+The web server essentially reads the latest data from `<crawler>-top10.json` or `<crawler>-top10.bak.json` and renders a simple UI for users.
 
-## Scrapy settings
+There are 3 main HTTP endpoints:
+- `/` to serve index.html
+- `/run_vnexpress` to trigger vnexpress crawler if it's not running yet
+- `/run_tuoitre` to trigger tuoitre crawler if it's not running yet
 
-The settings in `spiders/settings.py` works well for me, partly because vnexpress.net did not seem to be very strict against crawling. If they have more restrictions in the future, you may need to use proxies to avoid getting blocked.
+The cronjob also triggers the above jobs every 30 minutes, with a timeout of 20 minutes for each job.
