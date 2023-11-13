@@ -2,6 +2,8 @@ import requests
 import scrapy
 import re
 from datetime import datetime, timedelta
+import json
+
 
 class TuoitreSpider(scrapy.Spider):
     name = 'tuoitre'
@@ -60,3 +62,27 @@ class TuoitreSpider(scrapy.Spider):
         else:
             print("Unable to extract base URL and page number from the URL.")
             return None
+
+    def get_comment_count(self, article_id_list):
+        url = "https://id.tuoitre.vn/api/getcount-comment.api"
+
+        headers = {'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'}
+
+        response = requests.request("POST", url, headers=headers, data={"ids": ','.join(article_id_list)})
+        response.raise_for_status()
+
+        return [i.get("object_id") for i in response.json().get("Data")]
+
+
+    def get_comment_like(article_id, index=1):
+        url = "https://id.tuoitre.vn/api/getlist-comment.api"
+
+        response = requests.get("https://id.tuoitre.vn/api/getlist-comment.api", params={
+            "sort": 2,
+            "objType": 1,
+            "objId": article_id,
+            "pagesize": 100,
+            "pagesize": index
+        })
+
+        return sum(comment.get("likes") for comment in json.loads(response.json()['Data']))
