@@ -31,7 +31,6 @@ def is_crawl_running(spider):
 @app.route('/')
 def index():
     vnexpress = load_data("vnexpress-top10")
-    print(vnexpress)
     tuoitre = load_data("tuoitre-top10")
 
     return render_template('index.html', vnexpress=vnexpress, tuoitre=tuoitre)
