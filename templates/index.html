@@ -16,9 +16,11 @@
 <h1>VNExpress</h1>
 
 <form action="{{ url_for('run_vnexpress') }}" method="get">
-    <button type="submit">Run VNExpress (Run every 30m)</button>
+    <button type="submit">Run VNExpress now</button>
     {% if vnexpress_running %}
-    <span style="font-style:italic">(Already Running)</span>
+    <span style="font-style:italic">(Currently running, please refresh until it completes)</span>
+    {% else %}
+    <span style="font-style:italic">(Auto run every 30m)</span>
     {% endif %}
 </form>
 
@@ -50,9 +52,11 @@
 <h1>Tuoitre</h1>
 
 <form action="{{ url_for('run_tuoitre') }}" method="get">
-    <button type="submit">Run Tuoitre (Run every 30m)</button>
+    <button type="submit">Run Tuoitre now</button>
     {% if tuoitre_running %}
-    <span style="font-style:italic">(Already Running)</span>
+    <span style="font-style:italic">(Currently running, please refresh until it completes)</span>
+    {% else %}
+    <span style="font-style:italic">(Auto run every 30m)</span>
     {% endif %}
 </form>
 
