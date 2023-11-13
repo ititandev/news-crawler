@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VNExpress</title>
+    <style>
+        table, th, td {
+            border: 1px solid black;
+            border-collapse: collapse;
+        }
+    </style>
+</head>
+<body>
+<h1>VNExpress</h1>
+
+<form action="{{ url_for('run_vnexpress') }}" method="get">
+    <button type="submit">Run VNExpress</button>
+</form>
+
+{% if vnexpress %}
+<p>Data last {{vnexpress["finish_reason"]}}: {{ vnexpress["finish_time"] }}, Elapsed seconds: {{vnexpress["elapsed_time_seconds"]}}</p>
+<table border="1">
+    <thead>
+    <tr>
+        <th>Title</th>
+        <th>Like</th>
+            </tr>
+    </thead>
+    <tbody>
+    {% for item in vnexpress["data"] %}
+    <tr>
+        <td><a href="{{ item.href }}">{{ item.title }}</a></td>
+        <td>{{ item.like }}</td>
+            </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>Data is not available. Wait for running jobs or Trigger it again</p>
+{% endif %}
+</body>
+</html>
+
+
+<h1>Tuoitre</h1>
+
+<form action="{{ url_for('run_tuoitre') }}" method="get">
+    <button type="submit">Run Tuoitre</button>
+</form>
+
+{% if tuoitre %}
+<p>Data last {{tuoitre["finish_reason"]}}: {{ tuoitre["finish_time"] }}, Elapsed seconds: {{tuoitre["elapsed_time_seconds"]}}</p>
+<table border="1">
+    <thead>
+    <tr>
+        <th>Title</th>
+        <th>Like</th>
+            </tr>
+    </thead>
+    <tbody>
+    {% for item in tuoitre["data"] %}
+    <tr>
+        <td><a href="https://tuoitre.vn/{{ item.href }}">{{ item.title }}</a></td>
+        <td>{{ item.like }}</td>
+            </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>Data is not available. Wait for running jobs or Trigger it again</p>
+{% endif %}
+</body>
+</html>
