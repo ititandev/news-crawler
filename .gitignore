@@ -1,5 +1,6 @@
 t.py
 data
+*.json
 # AWS keys
 *.pem
 
