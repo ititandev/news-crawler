@@ -1,10 +1,13 @@
+import os
 import json
 import subprocess
 
 import psutil as psutil
 from flask import Flask, render_template, request, redirect, url_for
+from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
+sched = BackgroundScheduler(daemon=True)
 
 
 def load_data(file):
@@ -30,6 +33,20 @@ def is_crawl_running(spider):
     return False
 
 
+@app.route('/run_vnexpress')
+def run_vnexpress():
+    if not is_crawl_running("vnexpress"):
+        subprocess.Popen(['timeout', '60m', 'scrapy', 'crawl', 'vnexpress', '-L', 'WARNING'])
+    return redirect(url_for('index'))
+
+
+@app.route('/run_tuoitre')
+def run_tuoitre():
+    if not is_crawl_running("tuoitre"):
+        subprocess.Popen(['timeout', '60m', 'scrapy', 'crawl', 'tuoitre', '-L', 'WARNING'])
+    return redirect(url_for('index'))
+
+
 @app.route('/')
 def index():
     vnexpress = load_data("vnexpress-top10")
@@ -43,19 +60,10 @@ def index():
                            )
 
 
-@app.route('/run_vnexpress')
-def run_vnexpress():
-    if not is_crawl_running("vnexpress"):
-        subprocess.Popen(['timeout', '20m', 'scrapy', 'crawl', 'vnexpress', '-L', 'ERROR'])
-    return redirect(url_for('index'))
-
-
-@app.route('/run_tuoitre')
-def run_tuoitre():
-    if not is_crawl_running("tuoitre"):
-        subprocess.Popen(['timeout', '20m', 'scrapy', 'crawl', 'tuoitre', '-L', 'ERROR'])
-    return redirect(url_for('index'))
-
+sched.add_job(run_vnexpress, 'interval', minutes=60)
+sched.add_job(run_tuoitre, 'interval', minutes=60)
+sched.start()
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=80, debug=True)
+    # HOST=unix://app.sock to listen unix socket instead
+    app.run(host=os.environ.get('HOST', "0.0.0.0"), port=os.environ.get('PORT', 8080), debug=True)
