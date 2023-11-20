@@ -43,8 +43,6 @@ class TuoitreSpider(scrapy.Spider):
         self.article_list = []
         self.article_set = set()
 
-        if os.path.exists('%s-top10.json' % self.name):
-            shutil.move('%s-top10.json' % self.name, '%s-top10.bak.json' % self.name)
         if os.path.exists('data/%s.json' % self.name):
             os.remove('data/%s.json' % self.name)
 
@@ -68,6 +66,8 @@ class TuoitreSpider(scrapy.Spider):
     def close(self, reason):
         top10 = heapq.nlargest(10, self.article_list, key=lambda x: x['like'])
         stats = self.crawler.stats.get_stats()
+        if os.path.exists('%s-top10.json' % self.name):
+            shutil.move('%s-top10.json' % self.name, '%s-top10.bak.json' % self.name)
         with open('%s-top10.json' % self.name, 'w', encoding='utf-8') as f:
             json.dump({"finish_reason": stats["finish_reason"],
                        "finish_time": str(stats["finish_time"]),
