@@ -32,20 +32,27 @@ def is_crawl_running(spider):
         pass
     return False
 
+def get_crawler_command(crawler):
+    return ['timeout', '60m', 'scrapy', 'crawl', crawler, '-L', 'WARNING', ';']
+
 
 @app.route('/run_vnexpress')
 def run_vnexpress():
     if not is_crawl_running("vnexpress"):
-        subprocess.Popen(['timeout', '60m', 'scrapy', 'crawl', 'vnexpress', '-L', 'WARNING'])
+        subprocess.Popen(get_crawler_command("vnexpress"))
     return redirect(url_for('index'))
 
 
 @app.route('/run_tuoitre')
 def run_tuoitre():
     if not is_crawl_running("tuoitre"):
-        subprocess.Popen(['timeout', '60m', 'scrapy', 'crawl', 'tuoitre', '-L', 'WARNING'])
+        subprocess.Popen(get_crawler_command("tuoitre"))
     return redirect(url_for('index'))
 
+
+def run_crawlers():
+    if not is_crawl_running("tuoitre") and not is_crawl_running("vnexpress"):
+        subprocess.Popen(get_crawler_command('tuoitre') + get_crawler_command('vnexpress') )
 
 @app.route('/')
 def index():
@@ -60,8 +67,7 @@ def index():
                            )
 
 
-sched.add_job(run_vnexpress, 'interval', minutes=60)
-sched.add_job(run_tuoitre, 'interval', minutes=60)
+sched.add_job(run_crawlers, 'interval', minutes=120)
 sched.start()
 
 if __name__ == '__main__':
