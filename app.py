@@ -8,6 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
 sched = BackgroundScheduler(daemon=True)
+timeout = int(os.environ.get("TIMEOUT", "60"))
 
 
 def load_data(file):
@@ -32,8 +33,9 @@ def is_crawl_running(spider):
         pass
     return False
 
+
 def get_crawler_command(crawler):
-    return ['timeout', '60m', 'scrapy', 'crawl', crawler, '-L', 'WARNING', ';']
+    return ['timeout', '%dm' % timeout, 'scrapy', 'crawl', crawler, '-L', 'WARNING', ';']
 
 
 @app.route('/run_vnexpress')
@@ -51,8 +53,11 @@ def run_tuoitre():
 
 
 def run_crawlers():
-    if not is_crawl_running("tuoitre") and not is_crawl_running("vnexpress"):
-        subprocess.Popen(get_crawler_command('tuoitre') + get_crawler_command('vnexpress') )
+    if not is_crawl_running("tuoitre"):
+        subprocess.run(get_crawler_command('tuoitre'), stdout=subprocess.PIPE, text=True)
+    if not is_crawl_running("vnexpress"):
+        subprocess.run(get_crawler_command('vnexpress'), stdout=subprocess.PIPE, text=True)
+
 
 @app.route('/')
 def index():
@@ -63,11 +68,12 @@ def index():
                            vnexpress=vnexpress,
                            tuoitre=tuoitre,
                            vnexpress_running=is_crawl_running("vnexpress"),
-                           tuoitre_running=is_crawl_running("tuoitre")
+                           tuoitre_running=is_crawl_running("tuoitre"),
+                           interval=timeout*2
                            )
 
 
-sched.add_job(run_crawlers, 'interval', minutes=120)
+sched.add_job(run_crawlers, 'interval', minutes=timeout*2)
 sched.start()
 
 if __name__ == '__main__':
